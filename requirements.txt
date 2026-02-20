@@ -1,4 +1,5 @@
 numpy
+scipy
 trimesh[easy]
 matplotlib
 pytest
