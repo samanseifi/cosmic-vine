@@ -1,4 +1,4 @@
-# Cosmic Vine — formX Geometry Challenge
+# Cosmic Vine
 
 A procedural 3D structure of connected cubes that grows outward like a vine.
 Each block originates from the face of the previous one with a random
