@@ -1,4 +1,4 @@
 numpy
-trimesh
+trimesh[easy]
 matplotlib
 pytest
