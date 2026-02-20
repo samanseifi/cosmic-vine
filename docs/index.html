@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cosmic Vine — formX</title>
+
+  <!--
+    Three.js is loaded via ES module importmap so we can use bare specifiers
+    (e.g. `import * as THREE from 'three'`) without a bundler.
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three":          "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+        "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    /* ── Reset & base ───────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #07080f;
+      --panel-bg:  #0d0f1a;
+      --border:    #1e2235;
+      --accent:    #50b4e0;
+      --accent-dk: #2a7aa8;
+      --text:      #c8cfe8;
+      --muted:     #5a6080;
+      --panel-w:   280px;
+      --font:      'Inter', system-ui, sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    #app {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ── Left control panel ─────────────────────────────────────────────── */
+    #panel {
+      width: var(--panel-w);
+      min-width: var(--panel-w);
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 18px;
+      gap: 20px;
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    #brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    #brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #fff;
+    }
+    #brand span {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    hr.divider {
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Control groups ─────────────────────────────────────────────────── */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .control-group label span {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    input[type="range"]:hover::-webkit-slider-thumb {
+      background: #fff;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 6px 10px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="number"]:focus {
+      border-color: var(--accent);
+    }
+
+    /* ── Buttons ────────────────────────────────────────────────────────── */
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.08s;
+    }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #07080f;
+    }
+    .btn-primary:hover { background: #78ccf5; }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Stats ──────────────────────────────────────────────────────────── */
+    #stats {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      margin-top: auto;
+    }
+    #stats .stat-row {
+      display: flex;
+      justify-content: space-between;
+    }
+    #stats .stat-row span:last-child {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* ── Three.js canvas container ──────────────────────────────────────── */
+    #viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #viewport canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    #hint {
+      position: absolute;
+      bottom: 14px;
+      right: 18px;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      pointer-events: none;
+    }
+
+    /* ── Loading overlay ────────────────────────────────────────────────── */
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(7,8,15,0.7);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      text-transform: uppercase;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #loading.visible { opacity: 1; pointer-events: all; }
+  </style>
+</head>
+
+<body>
+<div id="app">
+
+  <!-- ── Control panel ───────────────────────────────────────────────────── -->
+  <aside id="panel">
+    <div id="brand">
+      <h1>Cosmic Vine</h1>
+      <span>formX geometry challenge</span>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="control-group">
+      <label>Blocks <span id="blocks-val">100</span></label>
+      <input type="range" id="blocks-slider" min="5" max="500" value="100" step="1" />
+      <input type="number" id="blocks-input" min="5" max="500" value="100" />
+    </div>
+
+    <div class="control-group">
+      <label>Max Rotation <span id="rotation-val">45°</span></label>
+      <input type="range" id="rotation-slider" min="0" max="90" value="45" step="1" />
+      <input type="number" id="rotation-input" min="0" max="90" value="45" />
+    </div>
+
+    <div class="control-group">
+      <label>Seed <span id="seed-val">42</span></label>
+      <input type="range" id="seed-slider" min="1" max="9999" value="42" step="1" />
+      <input type="number" id="seed-input" min="1" max="9999" value="42" />
+    </div>
+
+    <hr class="divider" />
+
+    <button class="btn btn-primary" id="btn-generate">Generate</button>
+    <button class="btn btn-secondary" id="btn-download">Download .OBJ</button>
+
+    <div id="stats">
+      <div class="stat-row"><span>Blocks</span><span id="stat-blocks">—</span></div>
+      <div class="stat-row"><span>Faces</span><span id="stat-faces">—</span></div>
+      <div class="stat-row"><span>Seed</span><span id="stat-seed">—</span></div>
+    </div>
+  </aside>
+
+  <!-- ── Three.js viewport ──────────────────────────────────────────────── -->
+  <div id="viewport">
+    <div id="loading">Building vine…</div>
+    <div id="hint">Drag to orbit · Scroll to zoom · Right-drag to pan</div>
+  </div>
+
+</div>
+
+<!-- ── Application ─────────────────────────────────────────────────────────── -->
+<script type="module">
+import * as THREE          from 'three';
+import { OrbitControls }   from 'three/addons/controls/OrbitControls.js';
+import { OBJExporter }     from 'three/addons/exporters/OBJExporter.js';
+
+// ── Seeded random number generator (Park-Miller LCG) ───────────────────────
+//
+// Math.random() cannot be seeded, so we roll a simple deterministic PRNG.
+// This lets users reproduce any specific vine by sharing its seed value.
+class SeededRNG {
+  constructor(seed) {
+    this.state = (seed % 2147483647 + 2147483647) % 2147483647 || 1;
+  }
+  // Returns a float in [0, 1)
+  next() {
+    this.state = (this.state * 16807) % 2147483647;
+    return (this.state - 1) / 2147483646;
+  }
+  // Returns a float in [min, max)
+  range(min, max) { return min + this.next() * (max - min); }
+}
+
+// ── Three.js scene setup ────────────────────────────────────────────────────
+
+const viewport = document.getElementById('viewport');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+viewport.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07080f);
+scene.fog = new THREE.FogExp2(0x07080f, 0.008);
+
+const camera = new THREE.PerspectiveCamera(
+  50,
+  viewport.clientWidth / viewport.clientHeight,
+  0.01,
+  2000
+);
+camera.position.set(30, 20, 30);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping  = true;
+controls.dampingFactor  = 0.08;
+controls.minDistance    = 2;
+controls.maxDistance    = 800;
+
+// Lighting: ambient fill + a key directional light for depth cues
+const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+scene.add(ambient);
+
+const keyLight = new THREE.DirectionalLight(0xd0e8ff, 1.2);
+keyLight.position.set(50, 80, 40);
+keyLight.castShadow = true;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x8090c0, 0.4);
+fillLight.position.set(-30, -10, -20);
+scene.add(fillLight);
+
+// ── Vine group ──────────────────────────────────────────────────────────────
+// All block meshes live inside this group. On each generate() call we clear
+// and repopulate it, leaving the rest of the scene untouched.
+
+const vineGroup = new THREE.Group();
+scene.add(vineGroup);
+
+// ── Core vine algorithm ─────────────────────────────────────────────────────
+//
+// This mirrors the Python implementation exactly:
+//   1. Place a block at the current accumulated transform.
+//   2. Advance the transform using  T(b/2) @ R @ T(b/2)  (Three.js multiply order).
+//
+// The decomposed step guarantees that the -Z face of block N+1 lands exactly
+// on the +Z face of block N (the 'perfectly flush' constraint).
+//
+// Matrix convention: Three.js uses column vectors, so:
+//   currentMatrix.multiply(step)  ≡  currentMatrix = currentMatrix * step
+//   which matches Python's   current_transform = current_transform @ step
+//
+function buildVine(numBlocks, maxRotationDeg, seed) {
+  // Clear previous vine
+  while (vineGroup.children.length) {
+    const child = vineGroup.children[0];
+    child.geometry.dispose();
+    child.material.dispose();
+    vineGroup.remove(child);
+  }
+
+  const rng        = new SeededRNG(seed);
+  const blockSize  = 1.0;
+  const maxRot     = (maxRotationDeg * Math.PI) / 180;
+
+  // Running 4×4 transform — starts at world origin (identity)
+  const currentMatrix = new THREE.Matrix4();
+
+  // Shared geometry: all blocks are the same size, so one geometry is enough
+  const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+
+  for (let i = 0; i < numBlocks; i++) {
+
+    // ── 1. Place a block at the current transform ──────────────────────────
+
+    // Normalized progress along the vine (0 = root, 1 = tip)
+    const t = i / Math.max(numBlocks - 1, 1);
+
+    // Color gradient: blue-cyan at root → warm teal at tip
+    // (matches the Python formula: r=80+t*60, g=180-t*100, b=220-t*60)
+    const r = (80  + t * 60)  / 255;
+    const g = (180 - t * 100) / 255;
+    const b = (220 - t * 60)  / 255;
+
+    const material = new THREE.MeshPhongMaterial({
+      color:     new THREE.Color(r, g, b),
+      shininess: 60,
+      specular:  new THREE.Color(0.15, 0.15, 0.15),
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+
+    // Extract position and orientation from the accumulated transform
+    const position   = new THREE.Vector3().setFromMatrixPosition(currentMatrix);
+    const quaternion = new THREE.Quaternion().setFromRotationMatrix(currentMatrix);
+    mesh.position.copy(position);
+    mesh.quaternion.copy(quaternion);
+    mesh.castShadow    = true;
+    mesh.receiveShadow = true;
+
+    vineGroup.add(mesh);
+
+    // ── 2. Advance the transform to the next block ─────────────────────────
+    //
+    // Step = T(b/2) @ R @ T(b/2)
+    //
+    // Why this form?  A naive T(b) @ R pivots the rotation around the CENTER
+    // of the next block, which shifts its incoming face away from the current
+    // block's outgoing face.  By doing T(b/2) → R → T(b/2) we place the
+    // rotation pivot exactly at the connecting face, so both faces share the
+    // same world-space point regardless of the rotation applied.
+
+    const half = blockSize / 2;
+    const halfStep = new THREE.Matrix4().makeTranslation(0, 0, half);
+
+    const euler = new THREE.Euler(
+      rng.range(-maxRot, maxRot),  // pitch
+      rng.range(-maxRot, maxRot),  // yaw
+      rng.range(-maxRot, maxRot),  // roll
+    );
+    const rotation = new THREE.Matrix4().makeRotationFromEuler(euler);
+
+    // step = halfStep * rotation * halfStep  (column-vector convention)
+    // Applied to a point p:  step * p = halfStep * rotation * (halfStep * p)
+    //                                 = translate → rotate → translate
+    const step = halfStep.clone().multiply(rotation).multiply(halfStep);
+
+    // Accumulate in local space (right-multiply keeps transforms relative
+    // to the current block's own coordinate frame, same as Python's @)
+    currentMatrix.multiply(step);
+  }
+}
+
+// ── Camera framing ──────────────────────────────────────────────────────────
+// After generating, fit the camera so the whole vine is visible.
+
+function frameCameraOnVine() {
+  const box    = new THREE.Box3().setFromObject(vineGroup);
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const dist   = maxDim * 1.6;
+
+  camera.position.set(
+    center.x + dist * 0.8,
+    center.y + dist * 0.5,
+    center.z + dist * 0.8,
+  );
+  controls.target.copy(center);
+  controls.update();
+}
+
+// ── Stats display ───────────────────────────────────────────────────────────
+
+function updateStats(numBlocks, seed) {
+  document.getElementById('stat-blocks').textContent = numBlocks;
+  document.getElementById('stat-faces').textContent  = (numBlocks * 12).toLocaleString();
+  document.getElementById('stat-seed').textContent   = seed;
+}
+
+// ── Main generate function ──────────────────────────────────────────────────
+
+function generate() {
+  const numBlocks  = parseInt(document.getElementById('blocks-input').value,  10);
+  const maxRot     = parseFloat(document.getElementById('rotation-input').value);
+  const seed       = parseInt(document.getElementById('seed-input').value,    10);
+
+  const loading = document.getElementById('loading');
+  loading.classList.add('visible');
+
+  // Defer to next frame so the browser can paint the loading overlay first
+  requestAnimationFrame(() => {
+    buildVine(numBlocks, maxRot, seed);
+    frameCameraOnVine();
+    updateStats(numBlocks, seed);
+    loading.classList.remove('visible');
+  });
+}
+
+// ── OBJ export ─────────────────────────────────────────────────────────────
+// OBJExporter serialises the entire vineGroup into an OBJ text string, which
+// we then force-download as a file via a temporary <a> element.
+
+function downloadOBJ() {
+  if (!vineGroup.children.length) {
+    alert('Generate a vine first.');
+    return;
+  }
+  const exporter = new OBJExporter();
+  const text     = exporter.parse(vineGroup);
+  const blob     = new Blob([text], { type: 'text/plain' });
+  const url      = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  a.href         = url;
+  a.download     = `cosmic_vine_s${document.getElementById('seed-input').value}.obj`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Render loop ─────────────────────────────────────────────────────────────
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ── Resize handler ──────────────────────────────────────────────────────────
+
+window.addEventListener('resize', () => {
+  const w = viewport.clientWidth;
+  const h = viewport.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+
+// ── Control wiring ──────────────────────────────────────────────────────────
+// Each control has a slider + number input kept in sync with each other.
+
+function wire(sliderId, inputId, displayId, suffix = '') {
+  const slider  = document.getElementById(sliderId);
+  const input   = document.getElementById(inputId);
+  const display = document.getElementById(displayId);
+
+  const sync = (value) => {
+    const clamped = Math.min(Math.max(value, +slider.min), +slider.max);
+    slider.value  = clamped;
+    input.value   = clamped;
+    display.textContent = clamped + suffix;
+  };
+
+  slider.addEventListener('input', () => sync(slider.value));
+  input.addEventListener('change', () => sync(input.value));
+}
+
+wire('blocks-slider',   'blocks-input',   'blocks-val');
+wire('rotation-slider', 'rotation-input', 'rotation-val', '°');
+wire('seed-slider',     'seed-input',     'seed-val');
+
+document.getElementById('btn-generate').addEventListener('click', generate);
+document.getElementById('btn-download').addEventListener('click', downloadOBJ);
+
+// ── Initial render ──────────────────────────────────────────────────────────
+generate();
+</script>
+</body>
+</html>
